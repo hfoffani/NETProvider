@@ -1128,7 +1128,7 @@ namespace FirebirdSql.Data.FirebirdClient
 			{
 				if (innerConn.IsEnlisted)
 				{
-					this.transaction = innerConn.ActiveTransaction;
+					this.transaction = innerConn.CurrentTransaction;
 				}
 				else
 				{
@@ -1360,7 +1360,7 @@ namespace FirebirdSql.Data.FirebirdClient
 			}
 
 			if (this.transaction == null &&
-				this.connection.InnerConnection.HasActiveTransaction &&
+				this.connection.InnerConnection.CurrentTransaction != null && !this.connection.InnerConnection.CurrentTransaction.IsUpdated &&
 				!this.connection.InnerConnection.IsEnlisted)
 			{
 				throw new InvalidOperationException("Execute requires the Command object to have a Transaction object when the Connection object assigned to the command is in a pending local transaction. The Transaction property of the Command has not been initialized.");

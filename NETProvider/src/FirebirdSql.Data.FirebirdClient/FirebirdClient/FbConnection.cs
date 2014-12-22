@@ -509,7 +509,7 @@ namespace FirebirdSql.Data.FirebirdClient
 					catch
 					{
 						// if enlistment fails clean up innerConnection
-						this.innerConnection.DisposeTransaction();
+						this.innerConnection.DisposeTransactions();
 
 						if (this.options.Pooling)
 						{
@@ -564,7 +564,7 @@ namespace FirebirdSql.Data.FirebirdClient
 							}
 
 							// Dispose Transaction
-							this.innerConnection.DisposeTransaction();
+							this.innerConnection.DisposeTransactions();
 
 							// Dispose all active statemenets
 							this.innerConnection.ReleasePreparedCommands();

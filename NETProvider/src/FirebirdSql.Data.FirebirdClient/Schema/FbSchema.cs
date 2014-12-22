@@ -80,7 +80,7 @@ namespace FirebirdSql.Data.Schema
 			string          filter = String.Format("CollectionName='{0}'", collectionName);
 			StringBuilder	builder = this.GetCommandText(restrictions);
 			DataRow[]       restriction = connection.GetSchema(DbMetaDataCollectionNames.Restrictions).Select(filter);
-			FbTransaction	transaction = connection.InnerConnection.ActiveTransaction;
+			FbTransaction	transaction = connection.InnerConnection.CurrentTransaction;
 			FbCommand		command	= new FbCommand(builder.ToString(), connection, transaction);
 
 			if (restrictions != null && restrictions.Length > 0)

@@ -278,7 +278,7 @@ namespace FirebirdSql.Data.FirebirdClient
 			FbCommand schemaCmd = new FbCommand(
 				GetSchemaCommandText(),
 				this.command.Connection,
-				this.command.Connection.InnerConnection.ActiveTransaction);
+				this.command.Connection.InnerConnection.CurrentTransaction);
 
 			schemaCmd.Parameters.Add("@TABLE_NAME", FbDbType.Char, 31);
 			schemaCmd.Parameters.Add("@COLUMN_NAME", FbDbType.Char, 31);

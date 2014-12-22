@@ -13,10 +13,8 @@
  *	   language governing rights and limitations under the License.
  * 
  *	Copyright (c) 2002, 2007 Carlos Guzman Alvarez
+ *	Copyright (c) 2014 Jiri Cincura (jiri@cincura.net)
  *	All Rights Reserved.
- * 
- *  Contributors:
- *      Jiri Cincura (jiri@cincura.net)
  */
 
 using System;
@@ -25,6 +23,7 @@ using System.Data;
 using System.Text;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 using FirebirdSql.Data.Common;
 using FirebirdSql.Data.Schema;
@@ -37,7 +36,7 @@ namespace FirebirdSql.Data.FirebirdClient
 		#region · Fields ·
 
 		private IDatabase db;
-		private FbTransaction activeTransaction;
+		private List<FbTransaction> activeTransactions;
 		private List<WeakReference> preparedCommands;
 		private FbConnectionString options;
 		private FbConnection owningConnection;
@@ -54,17 +53,9 @@ namespace FirebirdSql.Data.FirebirdClient
 			get { return this.db; }
 		}
 
-		public bool HasActiveTransaction
+		public FbTransaction CurrentTransaction
 		{
-			get
-			{
-				return this.activeTransaction != null && !this.activeTransaction.IsUpdated;
-			}
-		}
-
-		public FbTransaction ActiveTransaction
-		{
-			get { return this.activeTransaction; }
+			get { return this.activeTransactions.LastOrDefault(); }
 		}
 
 		public FbConnection OwningConnection
@@ -92,6 +83,7 @@ namespace FirebirdSql.Data.FirebirdClient
 		{
 			this.preparedCommands = new List<WeakReference>();
 			this.preparedCommandsCleanupSyncRoot = new object();
+			this.activeTransactions = new List<FbTransaction>();
 
 			this.options = options;
 
@@ -225,20 +217,16 @@ namespace FirebirdSql.Data.FirebirdClient
 		{
 			lock (this)
 			{
-				if (this.HasActiveTransaction)
-				{
-					throw new InvalidOperationException("A transaction is currently active. Parallel transactions are not supported.");
-				}
-
 				try
 				{
-					this.activeTransaction = new FbTransaction(this.owningConnection, level);
-					this.activeTransaction.BeginTransaction();
-
+					var transaction = new FbTransaction(this.owningConnection, level);
+					transaction.BeginTransaction();
 					if (transactionName != null)
 					{
-						this.activeTransaction.Save(transactionName);
+						transaction.Save(transactionName);
 					}
+					this.activeTransactions.Add(transaction);
+					return transaction;
 				}
 				catch (IscException ex)
 				{
@@ -246,45 +234,39 @@ namespace FirebirdSql.Data.FirebirdClient
 				}
 			}
 
-			return this.activeTransaction;
 		}
 
 		public FbTransaction BeginTransaction(FbTransactionOptions options, string transactionName)
 		{
 			lock (this)
 			{
-				if (this.HasActiveTransaction)
-				{
-					throw new InvalidOperationException("A transaction is currently active. Parallel transactions are not supported.");
-				}
-
 				try
 				{
-					this.activeTransaction = new FbTransaction(
-						this.owningConnection, IsolationLevel.Unspecified);
-
-					this.activeTransaction.BeginTransaction(options);
-
+					var transaction = new FbTransaction(this.owningConnection, IsolationLevel.Unspecified);
+					transaction.BeginTransaction(options);
 					if (transactionName != null)
 					{
-						this.activeTransaction.Save(transactionName);
+						transaction.Save(transactionName);
 					}
+					this.activeTransactions.Add(transaction);
+					return transaction;
 				}
 				catch (IscException ex)
 				{
 					throw new FbException(ex.Message, ex);
 				}
 			}
-
-			return this.activeTransaction;
 		}
 
-		public void DisposeTransaction()
+		public void DisposeTransactions()
 		{
-			if (this.activeTransaction != null && !this.IsEnlisted)
+			if (!this.IsEnlisted)
 			{
-				this.activeTransaction.Dispose();
-				this.activeTransaction = null;
+				foreach (var item in this.activeTransactions)
+				{
+					item.Dispose();
+				}
+				this.activeTransactions.Clear();
 			}
 		}
 
@@ -316,7 +298,7 @@ namespace FirebirdSql.Data.FirebirdClient
 				if (this.enlistmentNotification != null && this.enlistmentNotification.SystemTransaction == transaction)
 					return;
 
-				if (this.HasActiveTransaction)
+				if (this.activeTransactions.Any())
 				{
 					throw new ArgumentException("Unable to enlist in transaction, a local transaction already exists");
 				}
